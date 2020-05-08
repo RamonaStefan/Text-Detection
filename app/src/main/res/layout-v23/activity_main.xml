@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<android.support.constraint.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/imgView"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#ccffcc"
+    tools:context=".MainActivity">
+
+    <Button
+        android:id="@+id/takePhoto"
+        android:layout_width="145dp"
+        android:layout_height="75dp"
+        android:layout_marginTop="100dp"
+        android:background="@drawable/round_button"
+        android:cursorVisible="true"
+        android:ellipsize="middle"
+        android:foregroundGravity="fill_horizontal|top"
+        android:onClick="launchCamera"
+        android:shape="rectangle"
+        android:text="@string/take_a_photo"
+        android:textAppearance="@style/TextAppearance.AppCompat.Body1"
+        android:textColor="#000000"
+        android:textStyle="bold"
+        app:layout_constraintBottom_toTopOf="@+id/searchGallery"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintVertical_bias="0.83"
+        tools:ignore="TextViewEdits" />
+
+    <Button
+        android:id="@+id/searchGallery"
+        android:layout_width="189dp"
+        android:layout_height="75dp"
+        android:layout_marginBottom="144dp"
+        android:background="@drawable/round_button"
+        android:onClick="searchGallery"
+        android:text="@string/choose_from_gallery"
+        android:textAllCaps="false"
+        android:textColor="#000000"
+        android:textStyle="bold"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent" />
+
+    <ImageView
+        android:id="@+id/imageView6"
+        android:layout_width="374dp"
+        android:layout_height="218dp"
+        android:layout_marginBottom="524dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.567"
+        app:layout_constraintStart_toStartOf="parent"
+        app:srcCompat="@drawable/logo" />
+
+</android.support.constraint.ConstraintLayout>

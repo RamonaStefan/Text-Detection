@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="utf-8"?>
+<android.support.constraint.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/imgView"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#ccffcc"
+    tools:context=".ActivityResult">
+
+    <Button
+        android:id="@+id/finish"
+        android:layout_width="336dp"
+        android:layout_height="47dp"
+        android:layout_marginBottom="16dp"
+        android:background="@drawable/round_button"
+        android:cursorVisible="true"
+        android:ellipsize="middle"
+        android:foregroundGravity="fill_horizontal|top"
+        android:onClick="finish"
+        android:shape="rectangle"
+        android:text="@string/finish"
+        android:textAppearance="@style/TextAppearance.AppCompat.Body1"
+        android:textColor="#000000"
+        android:textStyle="bold"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.533"
+        app:layout_constraintStart_toStartOf="parent"
+        tools:ignore="TextViewEdits"
+        tools:text="Finish" />
+
+    <Button
+        android:id="@+id/translate"
+        android:layout_width="100dp"
+        android:layout_height="55dp"
+        android:layout_marginTop="11dp"
+        android:background="@drawable/round_button"
+        android:onClick="translate"
+        android:text="@string/translate"
+        android:textAllCaps="false"
+        android:textColor="#000000"
+        android:textStyle="bold"
+        app:layout_constraintBottom_toTopOf="@+id/finish"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.498"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/textView"
+        app:layout_constraintVertical_bias="0.125" />
+
+    <Button
+        android:id="@+id/search"
+        android:layout_width="100dp"
+        android:layout_height="55dp"
+        android:background="@drawable/round_button"
+        android:onClick="searchOnGoogle"
+        android:text="@string/search_on_internet"
+        android:textAllCaps="false"
+        android:textStyle="bold"
+        app:layout_constraintBottom_toTopOf="@+id/finish"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.178"
+        app:layout_constraintStart_toEndOf="@+id/translate"
+        app:layout_constraintTop_toBottomOf="@+id/textView"
+        app:layout_constraintVertical_bias="0.481" />
+
+    <Button
+        android:id="@+id/copy"
+        android:layout_width="100dp"
+        android:layout_height="55dp"
+        android:background="@drawable/round_button"
+        android:onClick="copyToClipboard"
+        android:text="@string/copy_to_n_clipboard"
+        android:textAllCaps="false"
+        android:textStyle="bold"
+        app:layout_constraintBottom_toTopOf="@+id/finish"
+        app:layout_constraintEnd_toStartOf="@+id/translate"
+        app:layout_constraintHorizontal_bias="0.818"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/textView"
+        app:layout_constraintVertical_bias="0.481" />
+
+    <ImageView
+        android:id="@+id/imageView"
+        android:layout_width="319dp"
+        android:layout_height="43dp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:srcCompat="@drawable/logo"
+        tools:ignore="MissingConstraints" />
+
+    <ImageView
+        android:id="@+id/imageResult"
+        android:layout_width="320dp"
+        android:layout_height="359dp"
+        android:layout_marginBottom="8dp"
+        app:layout_constraintBottom_toTopOf="@+id/textView"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.494"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/imageView"
+        app:layout_constraintVertical_bias="1.0"
+        app:srcCompat="@android:drawable/editbox_dropdown_dark_frame" />
+
+    <TextView
+        android:id="@+id/textView"
+        android:layout_width="328dp"
+        android:layout_height="134dp"
+        android:layout_marginBottom="144dp"
+        android:background="#FFFFFF"
+        android:scrollbarAlwaysDrawHorizontalTrack="true"
+        android:scrollbarAlwaysDrawVerticalTrack="true"
+        android:scrollbarSize="10dp"
+        android:scrollbarStyle="outsideInset"
+        android:scrollbars="vertical"
+        android:textSize="20sp"
+        android:textStyle="bold|italic"
+        android:typeface="sans"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.518"
+        app:layout_constraintStart_toStartOf="parent" />
+
+</android.support.constraint.ConstraintLayout>

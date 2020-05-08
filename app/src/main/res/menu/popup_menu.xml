@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <item
+        android:id="@+id/action_arabic"
+        android:title="Arabic" />
+    <item
+        android:id="@+id/action_bulgarian"
+        android:title="Bulgarian" />
+    <item
+        android:id="@+id/action_czech"
+        android:title="Czech" />
+    <item
+        android:id="@+id/action_danish"
+        android:title="Danish" />
+    <item
+        android:id="@+id/action_dutch"
+        android:title="Dutch" />
+    <item
+        android:id="@+id/action_french"
+        android:title="French" />
+    <item
+        android:id="@+id/action_german"
+        android:title="German" />
+    <item
+        android:id="@+id/action_greek"
+        android:title="Greek" />
+    <item
+        android:id="@+id/action_japanese"
+        android:title="Japanese" />
+    <item
+        android:id="@+id/action_hungarian"
+        android:title="Hungarian" />
+    <item
+        android:id="@+id/action_romanian"
+        android:title="Romanian" />
+    <item
+        android:id="@+id/action_portuguese"
+        android:title="Portuguese" />
+    <item
+        android:id="@+id/action_spanish"
+        android:title="Spanish" />
+    <item
+        android:id="@+id/action_turkish"
+        android:title="Turkish" />
+
+</menu>

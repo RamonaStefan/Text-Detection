@@ -1,0 +1,40 @@
+{
+  "project_info": {
+    "project_number": "557057274364",
+    "firebase_url": "https://android-scanner-e6baa.firebaseio.com",
+    "project_id": "android-scanner-e6baa",
+    "storage_bucket": "android-scanner-e6baa.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:557057274364:android:6eba8e7ea64dcd4efbc279",
+        "android_client_info": {
+          "package_name": "com.example.scanner"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "557057274364-pgrbg9ai1e9i2bbucqkkkd3ps86k3406.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBwi-8SHo0ycDlqgUtm5T0Q7ri1wJsWILk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "557057274364-pgrbg9ai1e9i2bbucqkkkd3ps86k3406.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
