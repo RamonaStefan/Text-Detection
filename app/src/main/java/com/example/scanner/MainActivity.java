@@ -43,6 +43,7 @@ import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.concurrent.TimeUnit;
 
@@ -305,7 +306,7 @@ public class MainActivity extends AppCompatActivity {
                     String imageResult = (String) json.get("image");
                     JSONObject textResult = null, textTranslateResult = null;
                     StringBuilder result = new StringBuilder();
-                    StringBuilder resultTranslate = new StringBuilder();
+                    HashMap<String, String> translationMap = new HashMap<>();
                     try {
                         textResult = (JSONObject) json.get("text");
                         textTranslateResult = (JSONObject) json.get("translate");
@@ -315,14 +316,14 @@ public class MainActivity extends AppCompatActivity {
                         }
                         for (Iterator<String> it = textTranslateResult.keys(); it.hasNext(); ) {
                             String key = it.next();
-                            resultTranslate.append(textTranslateResult.get(key)).append(" ");
+                            translationMap.put(key, textTranslateResult.get(key).toString());
                         }
                     } catch (JSONException e) {
                         e.printStackTrace();
                     }
 
                     intent.putExtra("text", result.toString());
-                    intent.putExtra("translate", resultTranslate.toString());
+                    intent.putExtra("translate", translationMap);
                     try {
                         OutputStreamWriter outputStreamWriter = new OutputStreamWriter(MainActivity.this.openFileOutput("config.txt", Context.MODE_PRIVATE));
                         outputStreamWriter.write(imageResult);

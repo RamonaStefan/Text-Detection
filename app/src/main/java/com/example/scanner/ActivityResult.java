@@ -10,6 +10,7 @@ import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
+import android.text.method.ScrollingMovementMethod;
 import android.util.Base64;
 import android.util.Log;
 import android.view.ContextThemeWrapper;
@@ -37,6 +38,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.util.HashMap;
 
 public class ActivityResult extends AppCompatActivity  implements  PopupMenu.OnMenuItemClickListener{
 
@@ -50,6 +52,8 @@ public class ActivityResult extends AppCompatActivity  implements  PopupMenu.OnM
     String imageResult;
     String textTranslateResult;
     String languageResult;
+    String lines[];
+    HashMap<String, String> translationMap;
     IamAuthenticator authenticator = new IamAuthenticator("B63mxFfG8zlNF9BqkUBLBXUtu9OarpOWa1TEvkAWy-6S");
     LanguageTranslator languageTranslator = new LanguageTranslator("2018-05-01", authenticator);
 
@@ -68,7 +72,9 @@ public class ActivityResult extends AppCompatActivity  implements  PopupMenu.OnM
         viewText = findViewById(R.id.textView);
         viewImage = findViewById(R.id.imageResult);
         textResult = (String) getIntent().getExtras().get("text");
-        textTranslateResult = (String) getIntent().getExtras().get("translate");
+        translationMap = (HashMap<String, String>) getIntent().getExtras().get("translate");
+        lines = textResult.split("\\r?\\n");
+        viewText.setMovementMethod(new ScrollingMovementMethod());
         try {
             InputStream inputStream = ActivityResult.this.openFileInput("config.txt");
 
@@ -202,14 +208,27 @@ public class ActivityResult extends AppCompatActivity  implements  PopupMenu.OnM
        public Void doInBackground(String... params) {
                try {
                    languageTranslator.setServiceUrl("https://api.us-south.language-translator.watson.cloud.ibm.com/instances/51f99d7d-5354-44e5-9e33-f6e461285d73");
-                   TranslateOptions translateOptions = new TranslateOptions.Builder()
-                           .addText(textResult)
-                           .modelId("en-" + languageResult)
+                   TranslateOptions.Builder builder = new TranslateOptions.Builder();
+                   for(String line:lines) {
+                       builder.addText(line);
+                   }
+                   builder.modelId("en-" + languageResult);
+                   TranslateOptions translateOptions = builder
                            .build();
 
                    TranslationResult result = languageTranslator.translate(translateOptions)
                            .execute().getResult();
-                   textTranslateResult = result.getTranslations().get(0).getTranslation();
+                   textTranslateResult="";
+                   String translation = translationMap.get(languageResult);
+                   String backup[] = translation.split("\\r?\\n");
+                   for(int i = 0; i < result.getTranslations().size(); i++){
+                       if (result.getTranslations().get(i).getTranslation().equals(lines[i])){
+                           textTranslateResult += backup[i] + "\n";
+                       }
+                       else {
+                           textTranslateResult += result.getTranslations().get(i).getTranslation() + "\n";
+                       }
+                   }
                    viewText.setText(textTranslateResult);
                    // Invoke a Language Translator method
                } catch (NotFoundException e) {

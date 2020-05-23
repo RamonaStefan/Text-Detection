@@ -14,7 +14,6 @@ from json import JSONEncoder
 from base64 import b64encode
 from googletrans import Translator
 from spellchecker import SpellChecker
-from skPublish import API
 import pytesseract
 import enchant
 
@@ -688,8 +687,6 @@ def test(word):
         if (nblack > n / 2):
             gray_crop = cv2.bitwise_not(gray_crop)
 
-
-
         image_new = gray_crop.copy()
         gray_crop = cv2.resize(gray_crop, (width_max - 2, height_max), interpolation=cv2.INTER_AREA)
         image_new[:, 0:width_max - 2] = gray_crop
@@ -864,7 +861,7 @@ def test(word):
                 max_y = max(real_y2, real_y1)
                 dX = int((max_x - min_x) * 0.02)
                 dY = int((max_y - min_y) * 0.1)
-                pad_min_x = max(min_x - 3*dX, 0)
+                pad_min_x = max(min_x - 4*dX, 0)
                 pad_min_y = max(min_y - 2*dY, 0)
                 pad_max_x = min(max_x + 6*dX, resized_width)
                 pad_max_y = min(max_y + 2*dY, resized_height)
@@ -874,14 +871,20 @@ def test(word):
                 if pad_min_y > pad_max_y or pad_min_x > pad_max_x or pad_max_x > img.shape[1] or pad_max_y > img.shape[0]:
                     continue
 
+                cv2.imwrite(str(jk) + "result.jpg", crop_img)
                 width_max = max(round(crop_img.shape[1]*original_width/resized_width), 1000)
                 height_max = max(round(crop_img.shape[0]*original_height/resized_height), 1000)
+                # height_max = 4 * round(crop_img.shape[0] * original_height / resized_height)
+                # width_max = 2 * round(crop_img.shape[1] * original_width / resized_width)
+                # height_max = round(crop_img.shape[0]*original_height/resized_height)
+                # width_max = round(crop_img.shape[1]*original_width/resized_width)
                 crop_img = cv2.resize(crop_img, (width_max, height_max), interpolation=cv2.INTER_CUBIC)
-
+                # crop_img = erode(crop_img, 5)
+                #
                 # cv2.imwrite(save_path + str(jk) + "original.jpg", crop_img)
                 gray_crop = cv2.GaussianBlur(crop_img, (5, 5), 0)
                 # cv2.imwrite(save_path + str(jk) + "blurr.jpg", gray_crop)
-                gray_crop = cv2.cvtColor(crop_img, cv2.COLOR_BGR2GRAY)
+                gray_crop = cv2.cvtColor(gray_crop, cv2.COLOR_BGR2GRAY)
                 # cv2.imwrite(save_path + str(jk) + "gray.jpg", gray_crop)
 
                 gray_crop = dilate(gray_crop, 2)
@@ -895,8 +898,7 @@ def test(word):
                 image_final = cv2.bitwise_and(gray_crop, gray_crop, mask=mask)
                 mean = np.average(image_final)
                 ret, new_img = cv2.threshold(image_final, mean, 255,
-                                             cv2.THRESH_BINARY)  # for black text , cv.THRESH_BINARY_INV
-
+                                             cv2.THRESH_BINARY+cv2.THRESH_OTSU)  # for black text , cv.THRESH_BINARY_INV
                 # cv2.imwrite(save_path + str(jk) + "thresh2.jpg", new_img)
                 kernel = cv2.getStructuringElement(cv2.MORPH_CROSS, (3,3))  # to manipulate the orientation of dilution , large x means horizonatally dilating  more, large y means vertically dilating more
                 dilated = cv2.dilate(new_img, kernel, iterations=1)  # dilate , more the iteration more the dilation
@@ -949,7 +951,7 @@ def test(word):
                 for ctr in contours:
                     x, y, w, h = cv2.boundingRect(ctr)
                     ar = h / float(w)
-                    if area*0.01 < cv2.contourArea(ctr) < area*0.75 and ar > aspect_ratio :
+                    if area*0.01 < cv2.contourArea(ctr) < area*0.75 and ar > aspect_ratio and h > 0.3*height_word :
                         min_x = max(x, 0)
                         min_y = max(y, 0)
                         max_x = min(x + w, width_word)
@@ -981,7 +983,7 @@ def test(word):
                     x, y, w, h = cv2.boundingRect(ctr)
                     ar = h / float(w)
 
-                    if area*0.01 < cv2.contourArea(ctr) < area*0.75 and ar > aspect_ratio :
+                    if area*0.01 < cv2.contourArea(ctr) < area*0.75 and ar > aspect_ratio and h > 0.3*height_word :
                         min_x = max(x , 0)
                         min_y = max(y , 0)
                         max_x = min(x + w , width_word)
@@ -1020,22 +1022,27 @@ def test(word):
                     values_copy = values.copy()
                     for item in list(values):
                         i = values_copy.index(item)
-                        if pred_max[i] < 0.5:
+                        print(pred_max[i])
+                        if pred_max[i] < 0.43:
                             values.remove(item)
+
                     string_list[r] = listToString(values)
-                    lower_count = sum(map(str.islower, string_list[r]))
-                    upper_count = sum(map(str.isupper, string_list[r]))
-                    if len(string_list[r]) > 0:
-                        firstLetter = string_list[r][0]
-                        print(string_list[r])
-                        if string_list[r].upper() != spell.correction(string_list[r]).upper():
-                            string_list[r] = spell.correction(string_list[r])
-                        if firstLetter.isupper() and lower_count >= upper_count-1:
-                            string_list[r] = string_list[r].capitalize()
-                        elif upper_count >= lower_count and upper_count > 1:
-                            string_list[r] = string_list[r].upper()
-                        elif lower_count > upper_count and upper_count > 1:
-                            string_list[r] = string_list[r].lower()
+                    print(string_list[r])
+                    if not (all(map(str.isdigit, string_list[r]))):
+                        numbers = sum(c.isdigit() for c in string_list[r])
+                        lower_count = sum(map(str.islower, string_list[r]))
+                        upper_count = sum(map(str.isupper, string_list[r]))
+                        if numbers < lower_count + upper_count:
+                            if len(string_list[r]) > 0:
+                                firstLetter = string_list[r][0]
+                                if string_list[r].upper() != spell.correction(string_list[r]).upper():
+                                    string_list[r] = spell.correction(string_list[r])
+                                if firstLetter.isupper() and lower_count >= upper_count - 1:
+                                    string_list[r] = string_list[r].capitalize()
+                                elif upper_count >= lower_count and upper_count > 1:
+                                    string_list[r] = string_list[r].upper()
+                                elif lower_count > upper_count and upper_count > 1:
+                                    string_list[r] = string_list[r].lower()
 
                 r += 1
                 all_dets.append((key, 100 * new_probs[jk]))
@@ -1056,7 +1063,7 @@ def test(word):
                 max_y = max(real_y2, real_y1)
                 dX = int((max_x - min_x) * 0.02)
                 dY = int((max_y - min_y) * 0.1)
-                pad_min_x = max(min_x - 3 * dX, 0)
+                pad_min_x = max(min_x - 4 * dX, 0)
                 pad_min_y = max(min_y - 2 * dY, 0)
                 pad_max_x = min(max_x + 6 * dX, resized_width)
                 pad_max_y = min(max_y + 2 * dY, resized_height)
@@ -1084,8 +1091,10 @@ def test(word):
         # print(translator.translate(text, src="en", dest="ro").text)
     # text = spell.correction(text)
     string_result[0] = text
+    languages = ['ar', 'bg', 'cs', 'da', 'nl', 'fr', 'de', 'el', 'hu', 'ja', 'pt', 'ro', 'es', 'tr']
     if len(text) > 0:
-        translate_result[0] = translator.translate(text, src="en", dest="ro").text
+        for lan in languages:
+            translate_result[lan] = translator.translate(text, src="en", dest=lan).text
 
 
     print('Elapsed time = {}'.format(time.time() - st))
