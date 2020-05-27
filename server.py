@@ -495,21 +495,6 @@ class RoiPoolingConv(tf.keras.layers.Layer):
         return dict(list(base_config.items()) + list(config.items()))
 
 
-# get grayscale image
-def get_grayscale(image):
-    return cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-
-
-# noise removal
-def remove_noise(image, value):
-    return cv2.medianBlur(image, value)
-
-
-# thresholding
-def thresholding(image):
-    return cv2.threshold(image, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]
-
-
 # dilation
 def dilate(image, value):
     kernel = np.ones((value, value), np.uint8)
@@ -585,7 +570,7 @@ img_input = tf.keras.layers.Input(shape=input_shape_img)
 roi_input = tf.keras.layers.Input(shape=(num_rois, 4))
 feature_map_input = tf.keras.layers.Input(shape=input_shape_features)
 
-shared_layers = nn_base(img_input, trainable=False)
+shared_layers = nn_base(img_input, trainable=True)
 rpn_layers = rpnn(shared_layers, num_anchors)
 classifier = classifierr(feature_map_input, roi_input, num_rois, nb_classes=len(class_mapping), trainable=True)
 
@@ -604,12 +589,39 @@ model_classifier.compile(optimizer='sgd', loss='mse')
 
 bbox_threshold = 0.8
 translator = Translator()
+languages = ['ar', 'bg', 'cs', 'da', 'nl', 'fr', 'de', 'el', 'hu', 'ja', 'pt', 'ro', 'es', 'tr']
 pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 # # api = API(baseUrl='/api/v1/', accessKey="")
 # dictionaries = json.loads(api.getDictionaries())
 # dict = dictionaries[0]
 # dictCode = dict["dictionaryCode"]
 d = enchant.Dict("en_US")
+
+
+def preProcess(image):
+    image_pre_process = cv2.GaussianBlur(image, (5, 5), 0)
+    image_pre_process = cv2.cvtColor(image_pre_process, cv2.COLOR_BGR2GRAY)
+    image_pre_process = dilate(image_pre_process, 2)
+    image_pre_process = erode(image_pre_process, 2)
+    mean = np.average(image_pre_process)
+    ret, mask = cv2.threshold(image_pre_process, mean, 255, cv2.THRESH_BINARY)
+    image_final_process = cv2.bitwise_and(image_pre_process, image_pre_process, mask=mask)
+    ret, new_img_process = cv2.threshold(image_final_process, mean, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    kernel = cv2.getStructuringElement(cv2.MORPH_CROSS, (3, 3))
+    image_pre_process = cv2.dilate(new_img_process, kernel, iterations=1)
+    # white background
+    black_thresh = 100
+    nblack = 0
+    rows, cols = image_pre_process.shape
+    for i in range(rows):
+        for j in range(cols):
+            k = image_pre_process[i, j]
+            if k < black_thresh:
+                nblack += 1
+    n = rows * cols
+    if (nblack > n / 2):
+        image_pre_process = cv2.bitwise_not(image_pre_process)
+    return image_pre_process
 
 
 @app.route("/", methods=["POST"])
@@ -657,38 +669,10 @@ def test(word):
         # start2 = time.time()
         # print("Incepe timpul total")
         crop_img = img_original
-        width_max = 1000
+        width_max = 2000
         height_max = 1000
         crop_img = cv2.resize(crop_img, (width_max, height_max), interpolation=cv2.INTER_CUBIC)
-        gray_crop = cv2.GaussianBlur(crop_img, (5, 5), 0)
-        gray_crop = cv2.cvtColor(gray_crop, cv2.COLOR_BGR2GRAY)
-        gray_crop = dilate(gray_crop, 2)
-        gray_crop = erode(gray_crop, 2)
-        # gray_crop = cv2.adaptiveThreshold(gray_crop, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 115, 1)
-        mean = np.average(gray_crop)
-        ret, mask = cv2.threshold(gray_crop, mean, 255, cv2.THRESH_BINARY)
-        image_final = cv2.bitwise_and(gray_crop, gray_crop, mask=mask)
-        mean = np.average(image_final)
-        ret, new_img = cv2.threshold(image_final, mean, 255,
-                                     cv2.THRESH_BINARY)  # for black text , cv.THRESH_BINARY_INV
-
-        kernel = cv2.getStructuringElement(cv2.MORPH_CROSS, (3,
-                                                             3))  # to manipulate the orientation of dilution , large x means horizonatally dilating  more, large y means vertically dilating more
-        dilated = cv2.dilate(new_img, kernel, iterations=1)  # dilate , more the iteration more the dilation
-        gray_crop = dilated
-        # white background
-        black_thresh = 100
-        nblack = 0
-        rows, cols = gray_crop.shape
-        for i in range(rows):
-            for j in range(cols):
-                k = gray_crop[i, j]
-                if k < black_thresh:
-                    nblack += 1
-        n = rows * cols
-        if (nblack > n / 2):
-            gray_crop = cv2.bitwise_not(gray_crop)
-
+        gray_crop = preProcess(crop_img)
         image_new = gray_crop.copy()
         gray_crop = cv2.resize(gray_crop, (width_max - 2, height_max), interpolation=cv2.INTER_AREA)
         image_new[:, 0:width_max - 2] = gray_crop
@@ -698,42 +682,41 @@ def test(word):
         cv2.imwrite(save_path + str(np.random.randint(0, 255)) + str(np.random.randint(0, 255)) + "lll.jpg", gray_crop)
 
         contours, hierarchy = cv2.findContours(gray_crop, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
-
-        d = 0
+        contours = sorted(contours, key=lambda ctr: cv2.boundingRect(ctr)[0])
+        num_letters = 0
 
         height_word, width_word = gray_crop.shape
         area = width_word * height_word
+        aspect_ratio = height_word / float(width_word)
+        new_contours = []
         for ctr in contours:
             x, y, w, h = cv2.boundingRect(ctr)
             ar = h / float(w)
-            if area * 0.01 < cv2.contourArea(ctr) < area * 0.75 and 2 <= ar < 10:
-                d += 1
+            if area * 0.01 < cv2.contourArea(ctr) < area * 0.75 and ar > 0.8 * aspect_ratio and h > 0.3 * height_word:
+                num_letters += 1
+                new_contours.append(ctr)
 
-        contours = sorted(contours, key=lambda ctr: cv2.boundingRect(ctr)[0])
-        roi = np.zeros((d, 1, IMG_SIZE, IMG_SIZE), dtype=float)
-        d = 0
+        roi = np.zeros((num_letters, 1, IMG_SIZE, IMG_SIZE), dtype=float)
+        num_letters = 0
 
-        for ctr in contours:
+        for ctr in new_contours:
             x, y, w, h = cv2.boundingRect(ctr)
-            ar = h / float(w)
+            dX = int(w * 0.05)
+            dY = int(h * 0.05)
+            min_x = max(x - 2 * dX, 0)
+            min_y = max(y - 2 * dY, 0)
+            max_x = min(x + w + 2 * dX, width_word)
+            max_y = min(y + h + 2 * dY, height_word)
 
-            if area * 0.01 < cv2.contourArea(ctr) < area * 0.75 and 2 <= ar <= 10:
-                dX = int(w * 0.05)
-                dY = int(h * 0.05)
-                min_x = max(x - 2 * dX, 0)
-                min_y = max(y - 2 * dY, 0)
-                max_x = min(x + w + 2 * dX, width_word)
-                max_y = min(y + h + 2 * dY, height_word)
+            letter = gray_crop[min_y:max_y, min_x:max_x]
+            letter = dilate(letter, 7)
+            letter = cv2.resize(letter, (64, 64), interpolation=cv2.INTER_AREA)
 
-                letter = gray_crop[min_y:max_y, min_x:max_x]
-                letter = dilate(letter, 7)
-                letter = cv2.resize(letter, (64, 64), interpolation=cv2.INTER_AREA)
-                image_new = letter
+            cv2.imwrite(save_path + str(num_letters) + ".jpg", letter)
 
-                cv2.imwrite(save_path + str(d) + ".jpg", image_new)
+            roi[num_letters] = tf.expand_dims(letter, 0)
+            num_letters += 1
 
-                roi[d] = tf.expand_dims(image_new, 0)
-                d += 1
         if len(roi) > 0:
             predictions = tf.argmax(model.predict(roi), axis=1)
             values = [CATEGORIES[i] for i in predictions]
@@ -745,20 +728,24 @@ def test(word):
                 if pred_max[i] < 0.4:
                     values.remove(item)
             string_list[r] = listToString(values)
-            lower_count = sum(map(str.islower, string_list[r]))
-            upper_count = sum(map(str.isupper, string_list[r]))
-            if len(string_list[r]) > 0:
-                firstLetter = string_list[r][0]
-                print(string_list[r])
-                if string_list[r].upper() != spell.correction(string_list[r]).upper():
-                    string_list[r] = spell.correction(string_list[r])
-                if firstLetter.isupper() and lower_count > upper_count - 1:
-                    string_list[r] = string_list[r].capitalize()
-                elif upper_count >= lower_count:
-                    string_list[r] = string_list[r].upper()
-                else:
-                    string_list[r] = string_list[r].lower()
-
+            print(string_list[r])
+            if not (all(map(str.isdigit, string_list[r]))):
+                numbers = sum(c.isdigit() for c in string_list[r])
+                lower_count = sum(map(str.islower, string_list[r]))
+                upper_count = sum(map(str.isupper, string_list[r]))
+                if numbers == 0 and len(string_list[r]) == 1:
+                    string_list[r] = ""
+                if numbers < lower_count + upper_count:
+                    if len(string_list[r]) > 0:
+                        firstLetter = string_list[r][0]
+                        if string_list[r].lower() != spell.correction(string_list[r]):
+                            string_list[r] = spell.correction(string_list[r])
+                        if firstLetter.isupper() and lower_count > upper_count - 1:
+                            string_list[r] = string_list[r].capitalize()
+                        elif upper_count >= lower_count:
+                            string_list[r] = string_list[r].upper()
+                        else:
+                            string_list[r] = string_list[r].lower()
         r += 1
 
     else:
@@ -863,8 +850,8 @@ def test(word):
                 pad_max_y = min(max_y + 2*dY, resized_height)
 
                 crop_img = img_original_copy[pad_min_y:pad_max_y, pad_min_x:pad_max_x]
-                # crop_img = cv2.fastNlMeansDenoisingColored(crop_img, None, 10, 10, 7, 21)
-                if pad_min_y > pad_max_y or pad_min_x > pad_max_x or pad_max_x > img.shape[1] or pad_max_y > img.shape[0]:
+                if pad_min_y > pad_max_y or pad_min_x > pad_max_x or pad_max_x > img.shape[1] or pad_max_y > img.shape[
+                    0]:
                     continue
                 cv2.imwrite(str(jk) + "result.jpg", crop_img)
                 width_max = max(round(crop_img.shape[1]*original_width/resized_width), 1000)
@@ -874,84 +861,40 @@ def test(word):
                 # height_max = round(crop_img.shape[0]*original_height/resized_height)
                 # width_max = round(crop_img.shape[1]*original_width/resized_width)
                 crop_img = cv2.resize(crop_img, (width_max, height_max), interpolation=cv2.INTER_CUBIC)
-                # crop_img = erode(crop_img, 5)
-                #
                 # cv2.imwrite(save_path + str(jk) + "original.jpg", crop_img)
 
-               # start = time.time()
-               # print("Se masoara timpul de pre-procesare")
-
-                gray_crop = cv2.GaussianBlur(crop_img, (5, 5), 0)
-                # cv2.imwrite(save_path + str(jk) + "blurr.jpg", gray_crop)
-                gray_crop = cv2.cvtColor(gray_crop, cv2.COLOR_BGR2GRAY)
-                # cv2.imwrite(save_path + str(jk) + "gray.jpg", gray_crop)
-
-                gray_crop = dilate(gray_crop, 2)
-                gray_crop = erode(gray_crop, 2)
-
-                # print(pytesseract.image_to_string(crop_img))
-
-
-                mean = np.average(gray_crop)
-                ret, mask = cv2.threshold(gray_crop, mean, 255, cv2.THRESH_BINARY)
-                image_final = cv2.bitwise_and(gray_crop, gray_crop, mask=mask)
-                mean = np.average(image_final)
-                ret, new_img = cv2.threshold(image_final, mean, 255,
-                                             cv2.THRESH_BINARY+cv2.THRESH_OTSU)  # for black text , cv.THRESH_BINARY_INV
-                # cv2.imwrite(save_path + str(jk) + "thresh2.jpg", new_img)
-                kernel = cv2.getStructuringElement(cv2.MORPH_CROSS, (3,3))  # to manipulate the orientation of dilution , large x means horizonatally dilating  more, large y means vertically dilating more
-                dilated = cv2.dilate(new_img, kernel, iterations=1)  # dilate , more the iteration more the dilation
-                # cv2.imwrite(save_path + str(jk) + "dilatare.jpg", dilated)
-                gray_crop = dilated
-                # white background
-                black_thresh = 100
-                nblack = 0
-                rows, cols = gray_crop.shape
-                for i in range(rows):
-                    for j in range(cols):
-                        k = gray_crop[i, j]
-                        if k < black_thresh:
-                            nblack += 1
-                n = rows * cols
-                if (nblack > n / 2):
-                    gray_crop = cv2.bitwise_not(gray_crop)
-                # cv2.imwrite(save_path + str(jk) + "backgr.jpg", gray_crop)
-
-               # end = time.time()
-               # print("Se incheie timpul de pre-procesare:")
-               # print(end - start)
+                # start = time.time()
+                # print("Se masoara timpul de pre-procesare")
+                gray_crop = preProcess(crop_img)
+                # end = time.time()
+                # print("Se incheie timpul de pre-procesare:")
+                # print(end - start)
 
                 # start = time.time()
                 # print("Incepe timpul de detectei contururi")
                 gray_crop_erosed = erode(gray_crop, 3)
-                # cv2.imwrite(save_path + str(jk) + "erodare.jpg", gray_crop_erosed)
                 contours, hierarchy = cv2.findContours(gray_crop_erosed, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
                 contours = sorted(contours, key=lambda ctr: cv2.contourArea(ctr), reverse=True)
-                ctr = contours[0]
-                x, y, w, h = cv2.boundingRect(ctr)
-                width_max = w
-                height_max = h
-                gray_crop = gray_crop[y:y+h, x:x+w]
+                x, y, w, h = cv2.boundingRect(contours[0])
+                gray_crop = gray_crop[y:y + h, x:x + w]
 
                 image_new = gray_crop.copy()
-                gray_crop = cv2.resize(gray_crop, (width_max - 2, height_max), interpolation=cv2.INTER_AREA)
+                gray_crop = cv2.resize(gray_crop, (w - 2, h), interpolation=cv2.INTER_AREA)
 
-                image_new[:, 0:width_max-2] = gray_crop
-                image_new[:, width_max-2:width_max] = 255
+                image_new[:, 0:w - 2] = gray_crop
+                image_new[:, w - 2:w] = 255
                 gray_crop = image_new
-                cv2.imwrite(save_path + str(nblack) + "lll.jpg", gray_crop)
-
-                # gray_crop = erode(gray_crop,5)
-                # gray_crop= dilate(gray_crop,5)
+                cv2.imwrite(save_path + str(np.random.randint(0, 255)) + str(np.random.randint(0, 255)) + "lll.jpg",
+                            gray_crop)
 
                 contours, hierarchy = cv2.findContours(gray_crop, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
 
-                d = 0
-                dim = (48, 48)
+                num_letters = 0
 
                 height_word, width_word = gray_crop.shape
                 area = width_word * height_word
-                aspect_ratio = height_word/float(width_word)
+                aspect_ratio = height_word / float(width_word)
+                new_contours = []
                 for ctr in contours:
                     x, y, w, h = cv2.boundingRect(ctr)
                     ar = h / float(w)
@@ -974,52 +917,33 @@ def test(word):
                         n = rows * cols
                         if nblack < n / 4:
                             continue
-                        d += 1
+                        new_contours.append(ctr)
+                        num_letters += 1
+                # end = time.time()
+                # print("Se incehei timpul de detectie contururi")
+                # print(end - start)
 
-                contours = sorted(contours, key=lambda ctr: cv2.boundingRect(ctr)[0])
-                roi = np.zeros((d, 1, IMG_SIZE, IMG_SIZE), dtype=float)
+                new_contours = sorted(new_contours, key=lambda ctr: cv2.boundingRect(ctr)[0])
+                roi = np.zeros((num_letters, 1, IMG_SIZE, IMG_SIZE), dtype=float)
                 image_new = np.ones((64, 64), dtype=float) * 255
-
-                d = 0
-                #end = time.time()
-               # print("Se incehei timpul de detectie contururi")
-               # print(end - start)
-
-                for ctr in contours:
+                num_letters = 0
+                for ctr in new_contours:
                     x, y, w, h = cv2.boundingRect(ctr)
-                    ar = h / float(w)
+                    min_x = max(x, 0)
+                    min_y = max(y, 0)
+                    max_x = min(x + w, width_word)
+                    max_y = min(y + h, height_word)
+                    letter = gray_crop[min_y:max_y, min_x:max_x]
 
-                    if area*0.01 < cv2.contourArea(ctr) < area*0.75 and ar > aspect_ratio and h > 0.3*height_word :
-                        min_x = max(x , 0)
-                        min_y = max(y , 0)
-                        max_x = min(x + w , width_word)
-                        max_y = min(y + h , height_word)
+                    # print(x, y, x + w, y + h, cv2.contourArea(ctr), ar, aspect_ratio)
 
-                        letter = gray_crop[min_y:max_y, min_x:max_x]
-                        # white background
-                        black_thresh = 100
-                        nblack = 0
-                        rows, cols = letter.shape
-                        for i in range(rows):
-                            for j in range(cols):
-                                k = letter[i, j]
-                                if k < black_thresh:
-                                    nblack += 1
-                        n = rows * cols
-                        if nblack < n / 4:
-                            continue
+                    letter = dilate(letter, 5)
+                    letter = cv2.resize(letter, (52, 52), interpolation=cv2.INTER_AREA)
 
-
-                        # print(x, y, x + w, y + h, cv2.contourArea(ctr), ar, aspect_ratio)
-
-                        letter = dilate(letter, 5)
-                        letter = cv2.resize(letter,(52,52) , interpolation=cv2.INTER_AREA)
-
-                        image_new[5:57, 5:57] = letter
-                        cv2.imwrite(save_path + str(jk) + str(d) + ".jpg", image_new)
-
-                        roi[d] = tf.expand_dims(image_new, 0)
-                        d += 1
+                    image_new[5:57, 5:57] = letter
+                    cv2.imwrite(save_path + str(jk) + str(num_letters) + ".jpg", image_new)
+                    roi[num_letters] = tf.expand_dims(image_new, 0)
+                    num_letters += 1
                 if len(roi) > 0:
                     # start = time.time()
                     # print("Incepe timpul de clasificare")
@@ -1067,9 +991,7 @@ def test(word):
 
                 r += 1
                 all_dets.append((key, 100 * new_probs[jk]))
-        # for i in roi:
-        #     m = tf.expand_dims(i, 0)
-        #     print(model.predict(m), tf.argmax(model.predict(m), axis=1), CATEGORIES[(tf.argmax(model.predict(m), axis=1))[0]])
+
         storage = np.zeros((r, 4), dtype=float)
         # start =time.time()
         # print("Incepe timpul de desenare")
@@ -1113,22 +1035,14 @@ def test(word):
             if len(string_list[iii]) <= 0:
                 continue
             if iii > 0 and storage[index][1] > storage[index - 1][1]:
-                text = text +  "\n"
-            # Get the one `most likely` answer
-            # string_list[iii] = spell.correction(string_list[iii])
-            # print(spell.correction(string_list[iii]))
-
+                text = text + "\n"
             translate_list[iii] = translator.translate(string_list[iii], src="en", dest="ro").text
             text = text + string_list[iii] + " "
-    # text = spell.correction(text)
     string_result[0] = text
-    languages = ['ar', 'bg', 'cs', 'da', 'nl', 'fr', 'de', 'el', 'hu', 'ja', 'pt', 'ro', 'es', 'tr']
     if len(text) > 0:
         for lan in languages:
             translate_result[lan] = translator.translate(text, src="en", dest=lan).text
 
-
-    # print('Elapsed time = {}'.format(time.time() - st))
     print(all_dets)
     print(string_list)
     img_original_copy = cv2.resize(img_original_copy, (original_width, original_height), interpolation=cv2.INTER_CUBIC)
