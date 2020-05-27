@@ -322,13 +322,15 @@ def classifierr(base_layers, input_rois, num_rois, nb_classes=21, trainable=Fals
 
     return [out_class, out_regr]
 
+
 def build_model():
     print("Creating the model ")
     model = tf.keras.Sequential()
     # Block 1
-    model.add(tf.keras.layers.Convolution2D(128, 3, 3, input_shape = (1, IMG_SIZE, IMG_SIZE), activation='relu',  padding='same'))
-    model.add(tf.keras.layers.Convolution2D(128, 3, 3, activation='relu',  padding='same'))
-    model.add(tf.keras.layers.MaxPooling2D(pool_size=(2, 2),  padding='same'))
+    model.add(tf.keras.layers.Convolution2D(128, 3, 3, input_shape=(1, IMG_SIZE, IMG_SIZE), activation='relu',
+                                            padding='same'))
+    model.add(tf.keras.layers.Convolution2D(128, 3, 3, activation='relu', padding='same'))
+    model.add(tf.keras.layers.MaxPooling2D(pool_size=(2, 2), padding='same'))
 
     # Block 2
     model.add(tf.keras.layers.Convolution2D(256, 3, 3, activation='relu',  padding='same'))
@@ -398,8 +400,6 @@ def listToString(s):
     str1 = ""
     for ele in s:
         str1 += ele[0]
-
-        # return string
     return str1
 
 class RoiPoolingConv(tf.keras.layers.Layer):
@@ -580,24 +580,28 @@ if 'bg' not in class_mapping:
     class_mapping['bg'] = len(class_mapping)
 
 class_mapping = {v: k for k, v in class_mapping.items()}
-class_to_color = {class_mapping[v]: np.random.randint(0, 255, 3) for v in class_mapping}
 
 img_input = tf.keras.layers.Input(shape=input_shape_img)
 roi_input = tf.keras.layers.Input(shape=(num_rois, 4))
 feature_map_input = tf.keras.layers.Input(shape=input_shape_features)
+
 shared_layers = nn_base(img_input, trainable=False)
 rpn_layers = rpnn(shared_layers, num_anchors)
 classifier = classifierr(feature_map_input, roi_input, num_rois, nb_classes=len(class_mapping), trainable=True)
+
 model_rpn = tf.keras.Model(img_input, rpn_layers)
 model_classifier_only = tf.keras.Model([feature_map_input, roi_input], classifier)
 model_classifier = tf.keras.Model([feature_map_input, roi_input], classifier)
 model = build_model()
 print('Loading weights from {}'.format(model_path_faster_rcnn))
+
 model_rpn.load_weights(model_path_faster_rcnn, by_name=True)
 model_classifier.load_weights(model_path_faster_rcnn, by_name=True)
 model.load_weights(model_path_vgg)
+
 model_rpn.compile(optimizer='sgd', loss='mse')
 model_classifier.compile(optimizer='sgd', loss='mse')
+
 bbox_threshold = 0.8
 translator = Translator()
 pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
@@ -610,7 +614,7 @@ d = enchant.Dict("en_US")
 
 @app.route("/", methods=["POST"])
 def upload():
-    print("HEI")
+    print("Image processing starts: ")
     content = request.files['file'].read()
     word = request.form.get('word')
     if word == "true":
@@ -631,35 +635,33 @@ def upload():
     return response
 
 
-
 # @app.after_request
 def test(word):
     global class_mapping
     r = 0
     string_list = {}
     translate_list = {}
-    st = time.time()
     img_original = cv2.imread('image.jpg')
     original_width = img_original.shape[1]
     original_height = img_original.shape[0]
     all_dets = []
     spell = SpellChecker(language="en", case_sensitive=True)
     img_original_copy = img_original.copy()
-    if original_height > 450 and original_height > 450:
-        img_original = erode(img_original, 5)
-        img_original= dilate(img_original,5)
+    # if original_height > 450 and original_height > 450:
+    #     img_original = erode(img_original, 5)
+    #     img_original= dilate(img_original,5)
 
-
-    print(img_original.shape)    #color
+    print(img_original.shape)  # color
     # print(pytesseract.image_to_string(img_original))
     if word:
+        # start2 = time.time()
+        # print("Incepe timpul total")
         crop_img = img_original
         width_max = 1000
         height_max = 1000
         crop_img = cv2.resize(crop_img, (width_max, height_max), interpolation=cv2.INTER_CUBIC)
         gray_crop = cv2.GaussianBlur(crop_img, (5, 5), 0)
         gray_crop = cv2.cvtColor(gray_crop, cv2.COLOR_BGR2GRAY)
-        # gray_crop = dilate(gray_crop, 5)
         gray_crop = dilate(gray_crop, 2)
         gray_crop = erode(gray_crop, 2)
         # gray_crop = cv2.adaptiveThreshold(gray_crop, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 115, 1)
@@ -693,13 +695,11 @@ def test(word):
         image_new[:, width_max - 2:width_max] = 255
         gray_crop = image_new
 
-        cv2.imwrite(save_path + str(nblack) + "lll.jpg", gray_crop)
+        cv2.imwrite(save_path + str(np.random.randint(0, 255)) + str(np.random.randint(0, 255)) + "lll.jpg", gray_crop)
 
         contours, hierarchy = cv2.findContours(gray_crop, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
 
         d = 0
-        dim = (48, 48)
-
 
         height_word, width_word = gray_crop.shape
         area = width_word * height_word
@@ -711,7 +711,6 @@ def test(word):
 
         contours = sorted(contours, key=lambda ctr: cv2.boundingRect(ctr)[0])
         roi = np.zeros((d, 1, IMG_SIZE, IMG_SIZE), dtype=float)
-        image_new = np.ones((64, 64), dtype=float) * 255
         d = 0
 
         for ctr in contours:
@@ -731,20 +730,10 @@ def test(word):
                 letter = cv2.resize(letter, (64, 64), interpolation=cv2.INTER_AREA)
                 image_new = letter
 
-
-                #
-                # letter = gray_crop[min_y:max_y, min_x:max_x]
-                # letter = dilate(letter, 7)
-                # letter = cv2.resize(letter, dim, interpolation=cv2.INTER_AREA)
-                #
-                # image_new[7:55, 7:55] = letter
                 cv2.imwrite(save_path + str(d) + ".jpg", image_new)
 
                 roi[d] = tf.expand_dims(image_new, 0)
                 d += 1
-        # for i in roi:
-        #     m = tf.expand_dims(i, 0)
-        #     print(model.predict(m), tf.argmax(model.predict(m), axis=1), CATEGORIES[(tf.argmax(model.predict(m), axis=1))[0]])
         if len(roi) > 0:
             predictions = tf.argmax(model.predict(roi), axis=1)
             values = [CATEGORIES[i] for i in predictions]
@@ -763,18 +752,19 @@ def test(word):
                 print(string_list[r])
                 if string_list[r].upper() != spell.correction(string_list[r]).upper():
                     string_list[r] = spell.correction(string_list[r])
-                if firstLetter.isupper() and lower_count >= upper_count - 1:
+                if firstLetter.isupper() and lower_count > upper_count - 1:
                     string_list[r] = string_list[r].capitalize()
-                elif upper_count >= lower_count and upper_count > 1:
+                elif upper_count >= lower_count:
                     string_list[r] = string_list[r].upper()
-                elif lower_count > upper_count and upper_count > 1:
+                else:
                     string_list[r] = string_list[r].lower()
 
         r += 1
 
     else:
+        # start2 = time.time()
+        # print("Incepe timpul total")
         img = img_original
-
         # --------------shape[0] = height, shape[1] = width----------------#
         x_img = augment(img, augment=False)
         (width, height) = (original_width, original_height)
@@ -788,11 +778,13 @@ def test(word):
 
         X, ratio = format_img(img)
 
-
         if tf.keras.backend.image_data_format() == 'channels_last':
             X = np.transpose(X, (0, 2, 3, 1))
 
+        # start = time.time()
+        # print("Incepe timpul de localizare")
         [Y1, Y2, F] = model_rpn.predict(X)
+        print(np.shape(F))
 
         R = rpn_to_roi(Y1, Y2, tf.keras.backend.image_data_format(), overlap_thresh=0.8)
 
@@ -816,7 +808,6 @@ def test(word):
                 ROIs = ROIs_padded
 
             [P_cls, P_regr] = model_classifier_only.predict([F, ROIs])
-
 
             for ii in range(P_cls.shape[1]):
                 if np.max(P_cls[0, ii, :]) < bbox_threshold or np.argmax(P_cls[0, ii, :]) == (P_cls.shape[2] - 1):
@@ -845,6 +836,11 @@ def test(word):
         if len(bboxes) == 0:
             return [string_list, translate_list, img]
 
+        # end = time.time()
+        # print("Se incheie timpul de localizare:")
+        # print(end - start)
+        keys = {}
+
         for key in bboxes:
             bbox = np.array(bboxes[key])
 
@@ -870,7 +866,6 @@ def test(word):
                 # crop_img = cv2.fastNlMeansDenoisingColored(crop_img, None, 10, 10, 7, 21)
                 if pad_min_y > pad_max_y or pad_min_x > pad_max_x or pad_max_x > img.shape[1] or pad_max_y > img.shape[0]:
                     continue
-
                 cv2.imwrite(str(jk) + "result.jpg", crop_img)
                 width_max = max(round(crop_img.shape[1]*original_width/resized_width), 1000)
                 height_max = max(round(crop_img.shape[0]*original_height/resized_height), 1000)
@@ -882,6 +877,10 @@ def test(word):
                 # crop_img = erode(crop_img, 5)
                 #
                 # cv2.imwrite(save_path + str(jk) + "original.jpg", crop_img)
+
+               # start = time.time()
+               # print("Se masoara timpul de pre-procesare")
+
                 gray_crop = cv2.GaussianBlur(crop_img, (5, 5), 0)
                 # cv2.imwrite(save_path + str(jk) + "blurr.jpg", gray_crop)
                 gray_crop = cv2.cvtColor(gray_crop, cv2.COLOR_BGR2GRAY)
@@ -918,7 +917,12 @@ def test(word):
                     gray_crop = cv2.bitwise_not(gray_crop)
                 # cv2.imwrite(save_path + str(jk) + "backgr.jpg", gray_crop)
 
-                #
+               # end = time.time()
+               # print("Se incheie timpul de pre-procesare:")
+               # print(end - start)
+
+                # start = time.time()
+                # print("Incepe timpul de detectei contururi")
                 gray_crop_erosed = erode(gray_crop, 3)
                 # cv2.imwrite(save_path + str(jk) + "erodare.jpg", gray_crop_erosed)
                 contours, hierarchy = cv2.findContours(gray_crop_erosed, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
@@ -977,7 +981,9 @@ def test(word):
                 image_new = np.ones((64, 64), dtype=float) * 255
 
                 d = 0
-
+                #end = time.time()
+               # print("Se incehei timpul de detectie contururi")
+               # print(end - start)
 
                 for ctr in contours:
                     x, y, w, h = cv2.boundingRect(ctr)
@@ -1015,34 +1021,49 @@ def test(word):
                         roi[d] = tf.expand_dims(image_new, 0)
                         d += 1
                 if len(roi) > 0:
+                    # start = time.time()
+                    # print("Incepe timpul de clasificare")
                     predictions = tf.argmax(model.predict(roi), axis=1)
+                    # print("Se incheie timpul de clasificare")
+                    # end = time.time()
+                    # print((end - start)/len(roi))
                     values = [CATEGORIES[i] for i in predictions]
                     pred = model.predict(roi)
                     pred_max = tf.math.reduce_max(pred, axis=1)
                     values_copy = values.copy()
+
+                    # start = time.time()
+                    # print("Incepe timpul de post-procesare")
                     for item in list(values):
                         i = values_copy.index(item)
                         print(pred_max[i])
                         if pred_max[i] < 0.43:
                             values.remove(item)
-
                     string_list[r] = listToString(values)
+                    keys[r] = jk
                     print(string_list[r])
                     if not (all(map(str.isdigit, string_list[r]))):
                         numbers = sum(c.isdigit() for c in string_list[r])
                         lower_count = sum(map(str.islower, string_list[r]))
                         upper_count = sum(map(str.isupper, string_list[r]))
+                        if numbers == 0 and len(string_list[r]) == 1:
+                        #     # and string_list[r].upper() != "A" and string_list[r].upper() != "I":
+                            string_list[r] = ""
+                            continue
                         if numbers < lower_count + upper_count:
                             if len(string_list[r]) > 0:
                                 firstLetter = string_list[r][0]
                                 if string_list[r].upper() != spell.correction(string_list[r]).upper():
                                     string_list[r] = spell.correction(string_list[r])
-                                if firstLetter.isupper() and lower_count >= upper_count - 1:
+                                if firstLetter.isupper() and lower_count > upper_count - 1:
                                     string_list[r] = string_list[r].capitalize()
-                                elif upper_count >= lower_count and upper_count > 1:
+                                elif upper_count >= lower_count:
                                     string_list[r] = string_list[r].upper()
-                                elif lower_count > upper_count and upper_count > 1:
+                                else:
                                     string_list[r] = string_list[r].lower()
+                    # print("Se incheie timpul de post-procesare")
+                    # end = time.time()
+                    # print(end - start)
 
                 r += 1
                 all_dets.append((key, 100 * new_probs[jk]))
@@ -1050,12 +1071,14 @@ def test(word):
         #     m = tf.expand_dims(i, 0)
         #     print(model.predict(m), tf.argmax(model.predict(m), axis=1), CATEGORIES[(tf.argmax(model.predict(m), axis=1))[0]])
         storage = np.zeros((r, 4), dtype=float)
-
+        # start =time.time()
+        # print("Incepe timpul de desenare")
         for key in bboxes:
             new_boxes, new_probs = non_max_suppression_fast(bbox, np.array(probs[key]), overlap_thresh=0.3)
             new_boxes = np.array(sorted(new_boxes.tolist(), key=lambda box: (box[1], box[0])))
+            index = 0
             for jk in string_list.keys():
-                (x1, y1, x2, y2) = new_boxes[int(jk), :]
+                (x1, y1, x2, y2) = new_boxes[int(keys[jk]), :]
                 (real_x1, real_y1, real_x2, real_y2) = get_real_coordinates(ratio, x1, y1, x2, y2)
                 min_x = min(real_x1, real_x2)
                 max_x = max(real_x1, real_x2)
@@ -1067,28 +1090,36 @@ def test(word):
                 pad_min_y = max(min_y - 2 * dY, 0)
                 pad_max_x = min(max_x + 6 * dX, resized_width)
                 pad_max_y = min(max_y + 2 * dY, resized_height)
-                storage[int(jk)] = [pad_min_x,pad_min_y, pad_max_x, pad_max_y]
                 if len(string_list[jk]) <= 0:
                     continue
+                storage[index] = [pad_min_x,pad_min_y, pad_max_x, pad_max_y]
+                index += 1
                 cv2.rectangle(img_original_copy, (pad_min_x, pad_min_y), (pad_max_x, pad_max_y), (np.random.randint(0, 255), np.random.randint(0, 255), np.random.randint(0, 255)), 2)
+       # print("Se incheie timpul de desenare")
+       #  end = time.time()
+       #  print(end - start)
+
+    # print("Se incheie timpul total")
+    # end2 = time.time()
+    # print(end2 - start2)
 
     text = ""
     string_result = {}
     translate_result = {}
+    index = -1
     if len(string_list) > 0:
         for iii in string_list:
+            index += 1
             if len(string_list[iii]) <= 0:
                 continue
-            if iii > 0 and storage[iii][1] > storage[iii - 1][1]:
+            if iii > 0 and storage[index][1] > storage[index - 1][1]:
                 text = text +  "\n"
             # Get the one `most likely` answer
             # string_list[iii] = spell.correction(string_list[iii])
             # print(spell.correction(string_list[iii]))
 
             translate_list[iii] = translator.translate(string_list[iii], src="en", dest="ro").text
-        # print(spell.candidates(string_list[iii]))
             text = text + string_list[iii] + " "
-        # print(translator.translate(text, src="en", dest="ro").text)
     # text = spell.correction(text)
     string_result[0] = text
     languages = ['ar', 'bg', 'cs', 'da', 'nl', 'fr', 'de', 'el', 'hu', 'ja', 'pt', 'ro', 'es', 'tr']
@@ -1097,7 +1128,7 @@ def test(word):
             translate_result[lan] = translator.translate(text, src="en", dest=lan).text
 
 
-    print('Elapsed time = {}'.format(time.time() - st))
+    # print('Elapsed time = {}'.format(time.time() - st))
     print(all_dets)
     print(string_list)
     img_original_copy = cv2.resize(img_original_copy, (original_width, original_height), interpolation=cv2.INTER_CUBIC)
