@@ -304,12 +304,14 @@ public class MainActivity extends AppCompatActivity {
                 try {
                     JSONObject json = new JSONObject(response.body().string());
                     String imageResult = (String) json.get("image");
-                    JSONObject textResult = null, textTranslateResult = null;
+                    JSONObject textResult = null, textTranslateResult = null, partsSpeech = null;
                     StringBuilder result = new StringBuilder();
                     HashMap<String, String> translationMap = new HashMap<>();
+                    HashMap<String, String> speechMap = new HashMap<>();
                     try {
                         textResult = (JSONObject) json.get("text");
                         textTranslateResult = (JSONObject) json.get("translate");
+                        partsSpeech = (JSONObject) json.get("speech");
                         for (Iterator<String> it = textResult.keys(); it.hasNext(); ) {
                             String key = it.next();
                             result.append(textResult.get(key)).append(" ");
@@ -318,12 +320,17 @@ public class MainActivity extends AppCompatActivity {
                             String key = it.next();
                             translationMap.put(key, textTranslateResult.get(key).toString());
                         }
+                        for (Iterator<String> it = partsSpeech.keys(); it.hasNext(); ) {
+                            String key = it.next();
+                            speechMap.put(key, partsSpeech.get(key).toString());
+                        }
                     } catch (JSONException e) {
                         e.printStackTrace();
                     }
 
                     intent.putExtra("text", result.toString());
                     intent.putExtra("translate", translationMap);
+                    intent.putExtra("speech", speechMap);
                     try {
                         OutputStreamWriter outputStreamWriter = new OutputStreamWriter(MainActivity.this.openFileOutput("config.txt", Context.MODE_PRIVATE));
                         outputStreamWriter.write(imageResult);

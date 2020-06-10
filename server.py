@@ -16,6 +16,10 @@ from googletrans import Translator
 from spellchecker import SpellChecker
 import pytesseract
 import enchant
+from PyDictionary import PyDictionary
+import nltk
+nltk.download('punkt')
+nltk.download('averaged_perceptron_tagger')
 
 app = flask.Flask(__name__)
 app.config["DEBUG"] = True
@@ -596,6 +600,7 @@ pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tessera
 # dict = dictionaries[0]
 # dictCode = dict["dictionaryCode"]
 d = enchant.Dict("en_US")
+dictionary=PyDictionary()
 
 
 def preProcess(image):
@@ -639,8 +644,9 @@ def upload():
     img = cv2.imdecode(npimg, cv2.IMREAD_UNCHANGED)
     cv2.imwrite('image.jpg', img)
     response = {}
-    [data, data_translate, img] = test(word)
+    [data, data_translate, img, partsSpeech] = test(word)
     response['text'] = data
+    response['speech'] = partsSpeech
     response['translate'] = data_translate
     b64_data = b64encode(cv2.imencode('.jpg', img)[1]).decode()
     response['image'] = b64_data
@@ -1042,14 +1048,22 @@ def test(word):
     if len(text) > 0:
         for lan in languages:
             translate_result[lan] = translator.translate(text, src="en", dest=lan).text
+			
+    text2 = nltk.word_tokenize(text)
+    result = nltk.pos_tag(text2)
+    result = [i[1] for i in result]
+    dictOfWords = { i : result[i] for i in range(0, len(result) ) }
+    print(dictOfWords)
 
     print(all_dets)
     print(string_list)
+    print(string_result)
     img_original_copy = cv2.resize(img_original_copy, (original_width, original_height), interpolation=cv2.INTER_CUBIC)
 
     cv2.imwrite("result.jpg", img_original_copy)
+    #print(dictionary.meaning("dead"))
 
-    return [string_result, translate_result, img_original_copy]
+    return [string_result, translate_result, img_original_copy, dictOfWords]
 
 
 if __name__ == '__main__':
