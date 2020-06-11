@@ -38,6 +38,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.util.ArrayList;
 import java.util.HashMap;
 
 public class ActivityResult extends AppCompatActivity  implements  PopupMenu.OnMenuItemClickListener{
@@ -52,8 +53,10 @@ public class ActivityResult extends AppCompatActivity  implements  PopupMenu.OnM
     String imageResult;
     String textTranslateResult;
     String languageResult;
-    String lines[];
+    String[] lines;
+    String[] sensitiveCase;
     HashMap<String, String> translationMap;
+    HashMap<String, String> speechMap;
     IamAuthenticator authenticator = new IamAuthenticator("B63mxFfG8zlNF9BqkUBLBXUtu9OarpOWa1TEvkAWy-6S");
     LanguageTranslator languageTranslator = new LanguageTranslator("2018-05-01", authenticator);
 
@@ -73,7 +76,9 @@ public class ActivityResult extends AppCompatActivity  implements  PopupMenu.OnM
         viewImage = findViewById(R.id.imageResult);
         textResult = (String) getIntent().getExtras().get("text");
         translationMap = (HashMap<String, String>) getIntent().getExtras().get("translate");
+        speechMap = (HashMap<String, String>) getIntent().getExtras().get("speech");
         lines = textResult.split("\\r?\\n");
+        sensitiveCase = textResult.split(" ");
         viewText.setMovementMethod(new ScrollingMovementMethod());
         try {
             InputStream inputStream = ActivityResult.this.openFileInput("config.txt");
@@ -198,6 +203,13 @@ public class ActivityResult extends AppCompatActivity  implements  PopupMenu.OnM
         if(!textResult.isEmpty()){
             Translator translator = new Translator();
             translator.execute();
+            try {
+                Thread.sleep(1000); //1000 milliseconds is one second.
+            }
+            catch (InterruptedException e)
+            {
+                e.printStackTrace();
+            }
             Toast.makeText(ActivityResult.this, "Text translated", Toast.LENGTH_SHORT).show();
         }
     }
@@ -209,26 +221,171 @@ public class ActivityResult extends AppCompatActivity  implements  PopupMenu.OnM
                try {
                    languageTranslator.setServiceUrl("https://api.us-south.language-translator.watson.cloud.ibm.com/instances/51f99d7d-5354-44e5-9e33-f6e461285d73");
                    TranslateOptions.Builder builder = new TranslateOptions.Builder();
-                   for(String line:lines) {
-                       builder.addText(line);
+                   textTranslateResult = "";
+                   int noWords = 0;
+                   int[] wordsPerLine = new int[lines.length];
+                   ArrayList<String> newLines = new ArrayList<String>();
+                   String auxLine= "";
+                   boolean oneLine = false;
+                   for(int i = 0; i < speechMap.size(); i++) {
+                       if(!speechMap.get(Integer.toString(i)).contains("NN")){
+                           oneLine = true;
+                           break;
+                       }
                    }
+                   if(oneLine) {
+                       for(int i = 0; i < lines.length; i++) {
+                           if (lines[i].length() == 0) continue;
+                           wordsPerLine[i] = lines[i].split(" ").length;
+                           noWords += wordsPerLine[i];
+                           if ((!speechMap.get(Integer.toString(noWords - 1)).contains("NNS")|| !speechMap.get(Integer.toString(noWords - 1)).contains("NNP")) && i < lines.length - 1) {
+                               auxLine += lines[i] + " " + lines[i + 1];
+                               i++;
+                               wordsPerLine[i] = lines[i].split(" ").length;
+                               noWords += wordsPerLine[i];
+                               if (i == lines.length - 1) {
+                                   newLines.add(auxLine);
+                               }
+                               else if (!speechMap.get(Integer.toString(noWords - 1)).contains("NNS")|| !speechMap.get(Integer.toString(noWords - 1)).contains("NNP")) {
+                                   auxLine = auxLine.substring(0, auxLine.length() - lines[i].length());
+                                   noWords -= wordsPerLine[i];
+                                   i--;
+                               }
+                           } else {
+                               if (auxLine.length() > 0) {
+                                   newLines.add(auxLine);
+                               }
+                               newLines.add(lines[i]);
+                               wordsPerLine[i] = lines[i].split(" ").length;
+                               auxLine = "";
+                           }
+                       }
+
+                   }
+                   else {
+                       for(int i = 0; i < lines.length; i++) {
+                           if (lines[i].length() == 0) continue;
+                           wordsPerLine[i] = lines[i].split(" ").length;
+                           noWords += wordsPerLine[i];
+                           newLines.add(lines[i]);
+                       }
+                   }
+
+                   for(int i = 0; i < newLines.size(); i++) {
+                       if(languageResult.equals("ro")) {
+                           builder.addText(newLines.get(i).toLowerCase());
+                       }
+                       else {
+                           builder.addText(newLines.get(i));
+                       }
+                   }
+
                    builder.modelId("en-" + languageResult);
                    TranslateOptions translateOptions = builder
                            .build();
 
                    TranslationResult result = languageTranslator.translate(translateOptions)
                            .execute().getResult();
+
                    textTranslateResult="";
                    String translation = translationMap.get(languageResult);
                    String backup[] = translation.split("\\r?\\n");
+                   int index = 0;
+                   String[] translations;
                    for(int i = 0; i < result.getTranslations().size(); i++){
-                       if (result.getTranslations().get(i).getTranslation().equals(lines[i])){
-                           textTranslateResult += backup[i] + "\n";
+                       if (result.getTranslations().get(i).getTranslation().equals(lines[i])) {
+                           translations = backup[i].split(" ");
                        }
                        else {
-                           textTranslateResult += result.getTranslations().get(i).getTranslation() + "\n";
+                           String translatedLine = result.getTranslations().get(i).getTranslation();
+                           translations = translatedLine.split(" ");
+                       }
+                       int wordsProcessed = 0;
+                       while(wordsProcessed < translations.length) {
+                           boolean smallCase = false;
+                           boolean upperCase = false;
+                           for (int k = wordsProcessed; k < wordsProcessed + wordsPerLine[index] && k < translations.length; k++) {
+                               if(languageResult.equals("ro")){
+                                   if(k < sensitiveCase.length){
+                                       smallCase = (sensitiveCase[k].equals(sensitiveCase[k].toLowerCase()));
+                                       upperCase = (sensitiveCase[k].equals(sensitiveCase[k].toUpperCase()));
+                                   }
+                                   if(smallCase && !upperCase){
+                                       textTranslateResult += translations[k] + " ";
+                                   }
+                                   else if (upperCase && !smallCase) {
+                                       textTranslateResult += translations[k].toUpperCase() + " ";
+                                   }
+                                   else {
+                                       textTranslateResult += translations[k].substring(0, 1).toUpperCase() + translations[k].substring(1) + " ";
+                                   }
+                               }
+                               else {
+                                   textTranslateResult += translations[k] + " ";
+                               }
+                           }
+                           wordsProcessed += wordsPerLine[index];
+                           index++;
+                           if(wordsProcessed < translations.length) {
+//                               if (result.getTranslations().size() < lines.length){
+//                                   textTranslateResult += "\n ";
+//                               }
+                               for (int k = wordsProcessed; k < translations.length; k++) {
+                                   if(languageResult.equals("ro") ){
+                                       if(k < sensitiveCase.length){
+                                           smallCase = (sensitiveCase[k].equals(sensitiveCase[k].toLowerCase()));
+                                           upperCase = (sensitiveCase[k].equals(sensitiveCase[k].toUpperCase()));
+                                       }
+                                       if(smallCase && !upperCase){
+                                           textTranslateResult += translations[k] + " ";
+                                       }
+                                       else if (upperCase && !smallCase) {
+                                           textTranslateResult += translations[k].toUpperCase() + " ";
+                                       }
+                                       else {
+                                           textTranslateResult += translations[k].substring(0, 1).toUpperCase() + translations[k].substring(1) + " ";
+                                       }
+                                   }
+                                   else {
+                                       textTranslateResult += translations[k] + " ";
+                                   }
+                                   wordsProcessed++;
+                               }
+                           }
+                           textTranslateResult +=  "\n";
                        }
                    }
+                   if(oneLine) {
+                       if (textTranslateResult.split("\\r?\\n").length < lines.length) {
+                           String[] words = textTranslateResult.replace("\\r?\\n", " ").split(" ");
+                           textTranslateResult = "";
+                           int wordsLine = words.length / lines.length;
+                           int count = 0;
+//                           while (count < words.length) {
+//                               for (int i = 0; i < wordsLine; i++) {
+//                                   textTranslateResult += words[count] + " ";
+//                                   count++;
+//                               }
+//                               textTranslateResult += "\n";
+//                           }
+                           for(int j = 0; j < wordsPerLine.length; j++) {
+                               for (int i = 0; i < wordsPerLine[j]; i++) {
+                                   textTranslateResult += words[count] + " ";
+                                   count++;
+                               }
+                               textTranslateResult += "\n";
+                           }
+                           if(count < words.length) {
+                               for (int i = count; i < words.length; i++) {
+                                   textTranslateResult += words[i] + " ";
+                                   if(i % wordsLine == 0) {
+                                       textTranslateResult += "\n";
+                                   }
+                               }
+                           }
+                       }
+                   }
+
                    viewText.setText(textTranslateResult);
                    // Invoke a Language Translator method
                } catch (NotFoundException e) {

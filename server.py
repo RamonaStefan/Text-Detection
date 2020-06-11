@@ -18,11 +18,17 @@ import pytesseract
 import enchant
 from PyDictionary import PyDictionary
 import nltk
+from os.path import expanduser
+from nltk.tag.stanford import StanfordPOSTagger
 nltk.download('punkt')
 nltk.download('averaged_perceptron_tagger')
 
 app = flask.Flask(__name__)
 app.config["DEBUG"] = True
+home = expanduser("~")
+_path_to_model = home + '\stanford-postagger\models\english-bidirectional-distsim.tagger'
+_path_to_jar = home + '\stanford-postagger\stanford-postagger.jar'
+st = StanfordPOSTagger(_path_to_model, _path_to_jar)
 
 def format_img_size(img):
     img_min_side = float(300)
@@ -1049,15 +1055,18 @@ def test(word):
         for lan in languages:
             translate_result[lan] = translator.translate(text, src="en", dest=lan).text
 			
-    text2 = nltk.word_tokenize(text)
-    result = nltk.pos_tag(text2)
-    result = [i[1] for i in result]
+    #text2 = nltk.word_tokenize(text)
+    #result = nltk.pos_tag(text2)
+    #result = [i[1] for i in result]
+    #dictOfWords = { i : result[i] for i in range(0, len(result) ) }
+   # print(dictOfWords)
+    result = st.tag(text.split())
     dictOfWords = { i : result[i] for i in range(0, len(result) ) }
     print(dictOfWords)
 
     print(all_dets)
     print(string_list)
-    print(string_result)
+ #   print(translate_result)
     img_original_copy = cv2.resize(img_original_copy, (original_width, original_height), interpolation=cv2.INTER_CUBIC)
 
     cv2.imwrite("result.jpg", img_original_copy)
