@@ -601,10 +601,6 @@ bbox_threshold = 0.8
 translator = Translator()
 languages = ['ar', 'bg', 'cs', 'da', 'nl', 'fr', 'de', 'el', 'hu', 'ja', 'pt', 'ro', 'es', 'tr']
 pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
-# # api = API(baseUrl='/api/v1/', accessKey="")
-# dictionaries = json.loads(api.getDictionaries())
-# dict = dictionaries[0]
-# dictCode = dict["dictionaryCode"]
 d = enchant.Dict("en_US")
 dictionary=PyDictionary()
 
@@ -637,7 +633,7 @@ def preProcess(image):
 
 @app.route("/", methods=["POST"])
 def upload():
-    print("Image processing starts: ")
+    print("Receiving HTTP request...")
     content = request.files['file'].read()
     word = request.form.get('word')
     if word == "true":
@@ -650,18 +646,21 @@ def upload():
     img = cv2.imdecode(npimg, cv2.IMREAD_UNCHANGED)
     cv2.imwrite('image.jpg', img)
     response = {}
+    print("Image received - done")
     [data, data_translate, img, partsSpeech] = test(word)
     response['text'] = data
     response['speech'] = partsSpeech
     response['translate'] = data_translate
     b64_data = b64encode(cv2.imencode('.jpg', img)[1]).decode()
     response['image'] = b64_data
+    print("Responding HTTP request...")
     return response
 
 
 # @app.after_request
 def test(word):
     global class_mapping
+    print("Image processing starts: ")
     r = 0
     string_list = {}
     translate_list = {}
@@ -671,15 +670,9 @@ def test(word):
     all_dets = []
     spell = SpellChecker(language="en", case_sensitive=True)
     img_original_copy = img_original.copy()
-    # if original_height > 450 and original_height > 450:
-    #     img_original = erode(img_original, 5)
-    #     img_original= dilate(img_original,5)
 
-    print(img_original.shape)  # color
-    # print(pytesseract.image_to_string(img_original))
+    print("Dimensions: ", img_original.shape)  # color
     if word:
-        # start2 = time.time()
-        # print("Incepe timpul total")
         crop_img = img_original
         width_max = 2000
         height_max = 1000
@@ -740,7 +733,7 @@ def test(word):
                 if pred_max[i] < 0.4:
                     values.remove(item)
             string_list[r] = listToString(values)
-            print(string_list[r])
+            # print(string_list[r])
             if not (all(map(str.isdigit, string_list[r]))):
                 numbers = sum(c.isdigit() for c in string_list[r])
                 lower_count = sum(map(str.islower, string_list[r]))
@@ -761,8 +754,6 @@ def test(word):
         r += 1
 
     else:
-        # start2 = time.time()
-        # print("Incepe timpul total")
         img = img_original
         # --------------shape[0] = height, shape[1] = width----------------#
         x_img = augment(img, augment=False)
@@ -773,17 +764,13 @@ def test(word):
         resized_height = height
         resized_width = width
         img = cv2.resize(x_img, (resized_width, resized_height), interpolation=cv2.INTER_CUBIC)
-        # img_original = cv2.resize(img_original, (resized_width, resized_height), interpolation=cv2.INTER_CUBIC)
 
         X, ratio = format_img(img)
 
         if tf.keras.backend.image_data_format() == 'channels_last':
             X = np.transpose(X, (0, 2, 3, 1))
 
-        # start = time.time()
-        # print("Incepe timpul de localizare")
         [Y1, Y2, F] = model_rpn.predict(X)
-        print(np.shape(F))
 
         R = rpn_to_roi(Y1, Y2, tf.keras.backend.image_data_format(), overlap_thresh=0.8)
 
@@ -833,11 +820,11 @@ def test(word):
                 probs[cls_name].append(np.max(P_cls[0, ii, :]))
 
         if len(bboxes) == 0:
-            return [string_list, translate_list, img]
+            print("No words found.")
+            return [string_list, translate_list, img, {}]
 
-        # end = time.time()
-        # print("Se incheie timpul de localizare:")
-        # print(end - start)
+        print("Words segmentation - done")
+
         keys = {}
 
         for key in bboxes:
@@ -868,22 +855,10 @@ def test(word):
                 cv2.imwrite(str(jk) + "result.jpg", crop_img)
                 width_max = max(round(crop_img.shape[1]*original_width/resized_width), 1000)
                 height_max = max(round(crop_img.shape[0]*original_height/resized_height), 1000)
-                # height_max = 4 * round(crop_img.shape[0] * original_height / resized_height)
-                # width_max = 2 * round(crop_img.shape[1] * original_width / resized_width)
-                # height_max = round(crop_img.shape[0]*original_height/resized_height)
-                # width_max = round(crop_img.shape[1]*original_width/resized_width)
                 crop_img = cv2.resize(crop_img, (width_max, height_max), interpolation=cv2.INTER_CUBIC)
-                # cv2.imwrite(save_path + str(jk) + "original.jpg", crop_img)
 
-                # start = time.time()
-                # print("Se masoara timpul de pre-procesare")
                 gray_crop = preProcess(crop_img)
-                # end = time.time()
-                # print("Se incheie timpul de pre-procesare:")
-                # print(end - start)
 
-                # start = time.time()
-                # print("Incepe timpul de detectei contururi")
                 gray_crop_erosed = erode(gray_crop, 3)
                 contours, hierarchy = cv2.findContours(gray_crop_erosed, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
                 contours = sorted(contours, key=lambda ctr: cv2.contourArea(ctr), reverse=True)
@@ -931,9 +906,6 @@ def test(word):
                             continue
                         new_contours.append(ctr)
                         num_letters += 1
-                # end = time.time()
-                # print("Se incehei timpul de detectie contururi")
-                # print(end - start)
 
                 new_contours = sorted(new_contours, key=lambda ctr: cv2.boundingRect(ctr)[0])
                 roi = np.zeros((num_letters, 1, IMG_SIZE, IMG_SIZE), dtype=float)
@@ -947,8 +919,6 @@ def test(word):
                     max_y = min(y + h, height_word)
                     letter = gray_crop[min_y:max_y, min_x:max_x]
 
-                    # print(x, y, x + w, y + h, cv2.contourArea(ctr), ar, aspect_ratio)
-
                     letter = dilate(letter, 5)
                     letter = cv2.resize(letter, (52, 52), interpolation=cv2.INTER_AREA)
 
@@ -957,27 +927,18 @@ def test(word):
                     roi[num_letters] = tf.expand_dims(image_new, 0)
                     num_letters += 1
                 if len(roi) > 0:
-                    # start = time.time()
-                    # print("Incepe timpul de clasificare")
                     predictions = tf.argmax(model.predict(roi), axis=1)
-                    # print("Se incheie timpul de clasificare")
-                    # end = time.time()
-                    # print((end - start)/len(roi))
                     values = [CATEGORIES[i] for i in predictions]
                     pred = model.predict(roi)
                     pred_max = tf.math.reduce_max(pred, axis=1)
                     values_copy = values.copy()
 
-                    # start = time.time()
-                    # print("Incepe timpul de post-procesare")
                     for item in list(values):
                         i = values_copy.index(item)
-                        print(pred_max[i])
                         if pred_max[i] < 0.43:
                             values.remove(item)
                     string_list[r] = listToString(values)
                     keys[r] = jk
-                    print(string_list[r])
                     if not (all(map(str.isdigit, string_list[r]))):
                         numbers = sum(c.isdigit() for c in string_list[r])
                         lower_count = sum(map(str.islower, string_list[r]))
@@ -997,16 +958,13 @@ def test(word):
                                     string_list[r] = string_list[r].upper()
                                 else:
                                     string_list[r] = string_list[r].lower()
-                    # print("Se incheie timpul de post-procesare")
-                    # end = time.time()
-                    # print(end - start)
 
                 r += 1
                 all_dets.append((key, 100 * new_probs[jk]))
 
+        print("Words recognition - done")
+
         storage = np.zeros((r, 4), dtype=float)
-        # start =time.time()
-        # print("Incepe timpul de desenare")
         for key in bboxes:
             new_boxes, new_probs = non_max_suppression_fast(bbox, np.array(probs[key]), overlap_thresh=0.3)
             new_boxes = np.array(sorted(new_boxes.tolist(), key=lambda box: (box[1], box[0])))
@@ -1029,13 +987,6 @@ def test(word):
                 storage[index] = [pad_min_x,pad_min_y, pad_max_x, pad_max_y]
                 index += 1
                 cv2.rectangle(img_original_copy, (pad_min_x, pad_min_y), (pad_max_x, pad_max_y), (np.random.randint(0, 255), np.random.randint(0, 255), np.random.randint(0, 255)), 2)
-       # print("Se incheie timpul de desenare")
-       #  end = time.time()
-       #  print(end - start)
-
-    # print("Se incheie timpul total")
-    # end2 = time.time()
-    # print(end2 - start2)
 
     text = ""
     string_result = {}
@@ -1054,23 +1005,21 @@ def test(word):
     if len(text) > 0:
         for lan in languages:
             translate_result[lan] = translator.translate(text, src="en", dest=lan).text
-			
-    #text2 = nltk.word_tokenize(text)
-    #result = nltk.pos_tag(text2)
-    #result = [i[1] for i in result]
-    #dictOfWords = { i : result[i] for i in range(0, len(result) ) }
-   # print(dictOfWords)
+
     result = st.tag(text.split())
     dictOfWords = { i : result[i] for i in range(0, len(result) ) }
-    print(dictOfWords)
 
-    print(all_dets)
-    print(string_list)
- #   print(translate_result)
+    if not word:
+        print("Probability of localization for founded words: ")
+        for i in string_list:
+            print("\t", string_list[i], all_dets[i])
+    else:
+        print("Word recognition - done")
+    # print(all_dets)
+    # print(string_list)
     img_original_copy = cv2.resize(img_original_copy, (original_width, original_height), interpolation=cv2.INTER_CUBIC)
 
     cv2.imwrite("result.jpg", img_original_copy)
-    #print(dictionary.meaning("dead"))
 
     return [string_result, translate_result, img_original_copy, dictOfWords]
 
